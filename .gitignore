@@ -1,0 +1,6 @@
+env
+resources
+google-service-key.json
+.vscode
+data.txt
+data.aes
