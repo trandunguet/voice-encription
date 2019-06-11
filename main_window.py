@@ -1,3 +1,6 @@
+import io
+import zlib
+
 from PySide2.QtWidgets import *
 from PySide2.QtCore import Slot, Qt
 import pyAesCrypt
@@ -11,6 +14,7 @@ class MainWindow(QWidget):
         self.browse_button = QPushButton("Choose file")
         self.encrypt_button = QPushButton("Encrypt")
         self.decrypt_button = QPushButton("Decrypt")
+        self.auto_de_compress_checkbox = QCheckBox("Auto compress/decompress")
         self.status_bar = QStatusBar()
         self.text = QLabel("No file chosen!")
         self.fname = ""
@@ -19,6 +23,7 @@ class MainWindow(QWidget):
         self.layout.addWidget(self.browse_button)
         self.layout.addWidget(self.encrypt_button)
         self.layout.addWidget(self.decrypt_button)
+        self.layout.addWidget(self.auto_de_compress_checkbox)
         self.layout.addWidget(self.text)
         self.layout.addWidget(self.status_bar)
         self.setLayout(self.layout)
@@ -65,10 +70,18 @@ class MainWindow(QWidget):
             self.status_bar.showMessage("Error: confirm failed")
             return
 
-        output = self.fname.split('.')[0] + '.aes'
+        input_data = io.BytesIO(bytes(open(self.fname, 'r').read(), 'utf-8'))
+        output_data = io.BytesIO()
+        if self.auto_de_compress_checkbox.isChecked():
+            input_data = io.BytesIO(zlib.compress(input_data.getvalue()))
+
+        output_filename = self.fname.split('.')[0] + '.aes'
         bufferSize = 64 * 1024
-        pyAesCrypt.encryptFile(self.fname, output, password, bufferSize)
-        self.status_bar.showMessage("Done. output: " + output)
+        pyAesCrypt.encryptStream(input_data, output_data, password, bufferSize)
+        output_file = open(output_filename, 'wb')
+        output_file.write(output_data.getvalue())
+
+        self.status_bar.showMessage("Done. output: " + output_filename)
 
     @Slot()
     def decrypt(self):
@@ -86,10 +99,20 @@ class MainWindow(QWidget):
             self.status_bar.showMessage("Error: empty password")
             return
 
-        output = self.fname.split('.')[0] + '.txt'
+        input_data = io.BytesIO(open(self.fname, 'rb').read())
+        output_data = io.BytesIO()
+
+        output_filename = self.fname.split('.')[0] + '.txt'
+        output_file = open(output_filename, 'w')
         bufferSize = 64 * 1024
         try:
-            pyAesCrypt.decryptFile(self.fname, output, password, bufferSize)
-            self.status_bar.showMessage("Done. output: " + output)
+            pyAesCrypt.decryptStream(input_data, output_data, password, bufferSize, len(input_data.getvalue()))
         except ValueError:
             self.status_bar.showMessage("Wrong password")
+            return
+
+        if self.auto_de_compress_checkbox.isChecked():
+            output_data = io.BytesIO(zlib.decompress(output_data.getvalue()))
+
+        output_file.write(str(output_data.getvalue().decode('utf-8')))
+        self.status_bar.showMessage("Done. output: " + output_filename)
