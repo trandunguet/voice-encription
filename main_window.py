@@ -14,7 +14,7 @@ class MainWindow(QWidget):
         self.browse_button = QPushButton("Choose file")
         self.encrypt_button = QPushButton("Encrypt")
         self.decrypt_button = QPushButton("Decrypt")
-        self.auto_de_compress_checkbox = QCheckBox("Auto compress/decompress")
+        self.compress_checkbox = QCheckBox("Compress")
         self.status_bar = QStatusBar()
         self.text = QLabel("No file chosen!")
         self.fname = ""
@@ -23,7 +23,7 @@ class MainWindow(QWidget):
         self.layout.addWidget(self.browse_button)
         self.layout.addWidget(self.encrypt_button)
         self.layout.addWidget(self.decrypt_button)
-        self.layout.addWidget(self.auto_de_compress_checkbox)
+        self.layout.addWidget(self.compress_checkbox)
         self.layout.addWidget(self.text)
         self.layout.addWidget(self.status_bar)
         self.setLayout(self.layout)
@@ -72,7 +72,7 @@ class MainWindow(QWidget):
 
         input_data = io.BytesIO(bytes(open(self.fname, 'r').read(), 'utf-8'))
         output_data = io.BytesIO()
-        if self.auto_de_compress_checkbox.isChecked():
+        if self.compress_checkbox.isChecked():
             input_data = io.BytesIO(zlib.compress(input_data.getvalue()))
 
         output_filename = self.fname.split('.')[0] + '.aes'
@@ -111,8 +111,10 @@ class MainWindow(QWidget):
             self.status_bar.showMessage("Wrong password")
             return
 
-        if self.auto_de_compress_checkbox.isChecked():
+        try:
             output_data = io.BytesIO(zlib.decompress(output_data.getvalue()))
+        except zlib.error:
+            pass
 
         output_file.write(str(output_data.getvalue().decode('utf-8')))
         self.status_bar.showMessage("Done. output: " + output_filename)
