@@ -4,3 +4,4 @@ google-service-key.json
 .vscode
 data.txt
 data.aes
+__pycache__

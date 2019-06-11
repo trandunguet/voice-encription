@@ -1,18 +1,13 @@
-import sys
-from PySide2.QtWidgets import (QApplication, QLabel, QPushButton,
-                               QVBoxLayout, QWidget, QFileDialog,
-                               QStatusBar)
+from PySide2.QtWidgets import *
 from PySide2.QtCore import Slot, Qt
-
-import speech_recognition as sr
 import pyAesCrypt
 
-class MyWidget(QWidget):
+from recognizer import Recognizer
+
+class MainWindow(QWidget):
     def __init__(self):
         QWidget.__init__(self)
         
-        self.recognizer = sr.Recognizer()
-
         self.browse_button = QPushButton("Choose file")
         self.encrypt_button = QPushButton("Encrypt")
         self.decrypt_button = QPushButton("Decrypt")
@@ -44,27 +39,32 @@ class MyWidget(QWidget):
         if not self.fname:
             return
 
+        self.recognizer_thread = Recognizer()
+        self.recognizer_thread.finished.connect(self.repeat)
         self.status_bar.showMessage("Say the password")
+        self.recognizer_thread.start()
 
-        with sr.Microphone() as source:
-            audio = self.recognizer.listen(source, phrase_time_limit=3, timeout=7)
-        
-        self.status_bar.showMessage("Recognizing voice ...")
-        password = ""
-        try:
-            password = self.recognizer.recognize_google(audio).lower()
-            self.status_bar.showMessage(password)
+    @Slot()
+    def repeat(self, password):
+        if not password:
+            self.status_bar.showMessage("Error: empty password")
+            return
+        self.password = password
+        self.recognizer_thread = Recognizer()
+        self.recognizer_thread.finished.connect(self.do_encrypt)
+        self.status_bar.showMessage("Your password is '" + password + "'. Repeat to confirm.")
+        self.recognizer_thread.start()
 
-        except sr.UnknownValueError:
-            print("Google Speech Recognition could not understand audio")
-        except sr.RequestError as e:
-            print("Could not request results from Google Speech Recognition service; {0}".format(e))
-
+    @Slot()
+    def do_encrypt(self, password):
         if not password:
             self.status_bar.showMessage("Error: empty password")
             return
 
-        self.status_bar.showMessage("Encrypting ...")
+        if self.password != password:
+            self.status_bar.showMessage("Error: confirm failed")
+            return
+
         output = self.fname.split('.')[0] + '.aes'
         bufferSize = 64 * 1024
         pyAesCrypt.encryptFile(self.fname, output, password, bufferSize)
@@ -75,27 +75,17 @@ class MyWidget(QWidget):
         if not self.fname:
             return
 
+        self.recognizer_thread = Recognizer()
+        self.recognizer_thread.finished.connect(self.do_decrypt)
         self.status_bar.showMessage("Say the password")
+        self.recognizer_thread.start()
 
-        with sr.Microphone() as source:
-            audio = self.recognizer.listen(source, phrase_time_limit=3, timeout=7)
-        
-        self.status_bar.showMessage("Recognizing voice ...")
-        password = ""
-        try:
-            password = self.recognizer.recognize_google(audio).lower()
-            self.status_bar.showMessage(password)
-
-        except sr.UnknownValueError:
-            print("Google Speech Recognition could not understand audio")
-        except sr.RequestError as e:
-            print("Could not request results from Google Speech Recognition service; {0}".format(e))
-
+    @Slot()
+    def do_decrypt(self, password):
         if not password:
             self.status_bar.showMessage("Error: empty password")
             return
 
-        self.status_bar.showMessage("Decrypting ...")
         output = self.fname.split('.')[0] + '.txt'
         bufferSize = 64 * 1024
         try:
@@ -103,12 +93,3 @@ class MyWidget(QWidget):
             self.status_bar.showMessage("Done. output: " + output)
         except ValueError:
             self.status_bar.showMessage("Wrong password")
-
-if __name__ == "__main__":
-    app = QApplication(sys.argv)
-
-    widget = MyWidget()
-    widget.resize(500, 300)
-    widget.show()
-
-    sys.exit(app.exec_())
